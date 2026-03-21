@@ -1,0 +1,27 @@
+---
+alwaysApply: true
+---
+
+## Project context
+This is a SwiftUI demo app focused on motion and interaction.
+
+Goal:
+build a polished animation of sending a paper letter.
+
+This is not a production app.
+
+## Technical rules
+- Use SwiftUI only
+- No third-party libraries
+- Keep code simple and readable
+- Avoid complex architecture
+
+## Animation focus
+- Prioritize smooth, clean animations
+- Build animations step by step
+- Prefer simple visual tricks over complex 3D
+
+## Workflow
+- Always start with a plan
+- Build in small iterations
+- Do not implement everything at once
