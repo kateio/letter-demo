@@ -85,7 +85,7 @@ struct PaperSheetView: View {
     ) -> some View {
         let shadowStart = max(0, progress - 0.02) / 0.98
         let phaseTwo = max(0, progress - 0.5) * 2
-        let shadowOpacity = 0.30 * shadowStart + 0.12 * phaseTwo
+        let shadowOpacity = 0.24 * shadowStart + 0.09 * phaseTwo
 
         return ZStack(alignment: .topLeading) {
             paperSurface(size: size, fontSize: fontSize, showsText: true)

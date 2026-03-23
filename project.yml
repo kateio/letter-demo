@@ -5,14 +5,14 @@ settings:
   base:
     PRODUCT_BUNDLE_IDENTIFIER: com.demo.paperletter
     SWIFT_VERSION: 5.0
-    IPHONEOS_DEPLOYMENT_TARGET: 17.0
+    IPHONEOS_DEPLOYMENT_TARGET: 26.0
     TARGETED_DEVICE_FAMILY: "1,2"
     CODE_SIGN_STYLE: Automatic
 targets:
   LetterDemo:
     type: application
     platform: iOS
-    deploymentTarget: "17.0"
+    deploymentTarget: "26.0"
     sources:
       - path: LetterDemoApp.swift
       - path: Features

@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 enum FoldAnimationStage {
     case idle
@@ -15,8 +18,11 @@ struct ComposeLetterView: View {
     @State private var phaseTwoProgress: CGFloat = 0
     @State private var foldStage: FoldAnimationStage = .idle
     @State private var isFoldAnimating = false
+    @State private var isPreviewOverlayVisible = false
     @FocusState private var isInputFocused: Bool
     private let previewSheetSize = CGSize(width: 332, height: 476)
+    private let previewTransitionDuration: Double = 0.35
+    private let previewOverlayDelay: Double = 0.12
 
     var body: some View {
         ZStack {
@@ -24,84 +30,152 @@ struct ComposeLetterView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                if stage == .editing {
-                    topBar
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
+                topBar
 
-                contentView
+                ZStack {
+                    if stage == .editing || stage == .transitioningToPreview {
+                        editingScreen
+                            .allowsHitTesting(stage == .editing)
+                    }
+
+                    if stage == .transitioningToPreview || stage == .paperPreview {
+                        AppColors.screenBackground
+                            .opacity(stage == .transitioningToPreview ? 0.22 : 0)
+                            .ignoresSafeArea()
+
+                        previewScreen(showFoldButton: stage == .paperPreview)
+                            .opacity(previewOverlayOpacity)
+                            .transition(.opacity)
+                    }
+                }
             }
-            .animation(.easeInOut(duration: 0.4), value: stage)
         }
+        .animation(.easeInOut(duration: 0.4), value: stage)
         .onAppear {
             isInputFocused = true
         }
     }
 
     private var topBar: some View {
-        HStack(spacing: 8) {
-            Button {
-                // Placeholder for navigation pop.
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 21, weight: .semibold))
-                    .foregroundStyle(.black)
-                    .frame(width: 28, height: 28)
+        GlassEffectContainer(spacing: 12) {
+            ZStack {
+                topBarForegroundContent
+                    .opacity(topBarForegroundOpacity)
+                    .blur(radius: topBarForegroundBlur)
+
+                HStack(spacing: 8) {
+                    topBarCircleButton(systemName: "chevron.left", iconSize: 21) {
+                        handleBack()
+                    }
+
+                    Spacer()
+                }
             }
-            .buttonStyle(.plain)
-
-            Text(draft.title)
-                .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(.black)
-                .lineLimit(1)
-
-            Spacer()
-
-            Button {
-                saveLetter()
-            } label: {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 18, weight: .semibold))
-                    .frame(width: 34, height: 34)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(AppColors.accentYellow)
-            .clipShape(Circle())
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 20)
         .padding(.top, AppSpacing.topBar)
         .padding(.bottom, 20)
     }
 
-    private var contentView: some View {
-        VStack(spacing: 24) {
-            if stage == .paperPreview {
-                Spacer(minLength: 16)
-            }
-
-            letterContainer
-
-            if stage == .paperPreview {
-                Button(isFolded ? "Развернуть" : "Свернуть") {
-                    toggleFold()
-                }
-                .font(.system(size: 17, weight: .semibold))
-                .buttonStyle(.borderedProminent)
-                .tint(AppColors.accentYellow)
+    private var topBarForegroundContent: some View {
+        ZStack {
+            Text(draft.title)
+                .font(.title2.weight(.semibold))
                 .foregroundStyle(.black)
-                .disabled(isFoldAnimating)
-                .transition(.opacity)
+                .lineLimit(1)
+                .padding(.horizontal, 64)
+
+            HStack {
+                Spacer()
+                topBarTrailingContent
             }
+        }
+    }
+
+    private func topBarCircleButton(
+        systemName: String,
+        iconSize: CGFloat,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: iconSize, weight: .semibold))
+                .foregroundStyle(.black)
+                .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular, in: Circle())
+    }
+
+    private var editingScreen: some View {
+        editingContent
+    }
+
+    private var editingContent: some View {
+        VStack(spacing: 24) {
+            letterContainer(isPreview: false)
+            Spacer()
+        }
+        .padding(.horizontal, AppSpacing.horizontal)
+        .blur(radius: stage == .transitioningToPreview ? 14 : 0)
+        .opacity(stage == .transitioningToPreview ? 0.58 : 1)
+        .scaleEffect(stage == .transitioningToPreview ? 0.985 : 1)
+    }
+
+    private func previewScreen(showFoldButton: Bool) -> some View {
+        VStack(spacing: 0) {
+            previewContent(showFoldButton: showFoldButton)
+        }
+        .overlay(alignment: .bottom) {
+            if showFoldButton {
+                foldButton
+                    .padding(.horizontal, AppSpacing.horizontal)
+                    .padding(.bottom, 40)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    private func previewContent(showFoldButton: Bool) -> some View {
+        VStack(spacing: 24) {
+            Spacer(minLength: 16)
+
+            letterContainer(isPreview: true)
+                .offset(y: -56)
 
             Spacer()
         }
         .padding(.horizontal, AppSpacing.horizontal)
     }
 
-    private var letterContainer: some View {
-        let isPreview = stage == .paperPreview
+    private var topBarTrailingContent: some View {
+        Group {
+            if stage == .editing {
+                topBarCircleButton(systemName: "checkmark", iconSize: 18) {
+                    saveLetter()
+                }
+                .allowsHitTesting(true)
+            } else {
+                Color.clear
+                    .frame(width: 44, height: 44)
+            }
+        }
+    }
 
-        return ZStack(alignment: .topLeading) {
+    private var foldButton: some View {
+        Button(isFolded ? "Развернуть" : "Свернуть") {
+            toggleFold()
+        }
+        .font(.system(size: 17, weight: .semibold))
+        .foregroundStyle(.black)
+        .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
+        .buttonStyle(.plain)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .disabled(isFoldAnimating)
+    }
+
+    private func letterContainer(isPreview: Bool) -> some View {
+        ZStack(alignment: .topLeading) {
             if isPreview {
                 PaperSheetView(
                     text: draft.body,
@@ -109,20 +183,16 @@ struct ComposeLetterView: View {
                     phaseTwoProgress: phaseTwoProgress,
                     foldStage: foldStage
                 )
-                    .allowsHitTesting(false)
+                .allowsHitTesting(false)
             } else {
-                ZStack(alignment: .topLeading) {
-                    editorVisualText
-
-                    TextEditor(text: $draft.body)
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundStyle(.clear)
-                        .scrollContentBackground(.hidden)
-                        .background(.clear)
-                        .focused($isInputFocused)
-                        .padding(.horizontal, 13)
-                        .padding(.top, 8)
-                }
+                TextEditor(text: $draft.body)
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundStyle(.black)
+                    .scrollContentBackground(.hidden)
+                    .background(.clear)
+                    .focused($isInputFocused)
+                    .padding(.horizontal, 13)
+                    .padding(.top, 8)
             }
         }
         .frame(
@@ -136,25 +206,48 @@ struct ComposeLetterView: View {
         .animation(.easeInOut(duration: 0.45), value: stage)
     }
 
-    private var editorVisualText: some View {
-        Text(draft.body.isEmpty ? " " : draft.body)
-            .font(.system(size: 16, weight: .regular))
-            .foregroundStyle(.black)
-            .lineSpacing(3)
-            .padding(.horizontal, 18)
-            .padding(.top, 16)
-    }
-
     private func saveLetter() {
         isInputFocused = false
+        dismissKeyboard()
         isFolded = false
         phaseOneProgress = 0
         phaseTwoProgress = 0
         foldStage = .idle
         isFoldAnimating = false
+        isPreviewOverlayVisible = false
 
-        withAnimation(.easeInOut(duration: 0.45)) {
-            stage = .paperPreview
+        withAnimation(.easeInOut(duration: previewTransitionDuration)) {
+            stage = .transitioningToPreview
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + previewOverlayDelay) {
+            withAnimation(.easeOut(duration: previewTransitionDuration - previewOverlayDelay)) {
+                isPreviewOverlayVisible = true
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + previewTransitionDuration) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                stage = .paperPreview
+            }
+        }
+    }
+
+    private func handleBack() {
+        if stage == .editing {
+            // Placeholder for navigation pop.
+        } else {
+            returnToEditing()
+        }
+    }
+
+    private func returnToEditing() {
+        withAnimation(.easeInOut(duration: 0.35)) {
+            stage = .editing
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            isInputFocused = true
         }
     }
 
@@ -203,6 +296,33 @@ struct ComposeLetterView: View {
                 }
             }
         }
+    }
+
+    private func dismissKeyboard() {
+        #if canImport(UIKit)
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+        #endif
+    }
+
+    private var previewOverlayOpacity: Double {
+        if stage == .paperPreview {
+            return 1
+        }
+
+        return isPreviewOverlayVisible ? 1 : 0
+    }
+
+    private var topBarForegroundOpacity: Double {
+        stage == .editing ? 1 : 0
+    }
+
+    private var topBarForegroundBlur: CGFloat {
+        stage == .editing ? 0 : 12
     }
 }
 
